@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodikRouter — Админ</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #16181f; --surface2: #1e2028;
+    --border: #2a2d38; --text: #e2e4ec; --muted: #6b7280;
+    --accent: #6366f1; --accent-h: #4f51d0;
+    --green: #22c55e; --red: #ef4444; --yellow: #f59e0b;
+    --radius: 8px; --font: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; min-height: 100vh; display: flex; flex-direction: column; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── LAYOUT ── */
+  .app { display: flex; flex: 1; }
+  .sidebar {
+    width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 0; flex-shrink: 0; min-height: 100vh;
+  }
+  .logo { padding: 20px 16px 12px; font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -.3px; }
+  .logo span { color: var(--text); font-weight: 400; }
+  .nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 8px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-radius: var(--radius); cursor: pointer; color: var(--muted);
+    transition: all .15s; border: none; background: none; font-size: 14px; width: 100%; text-align: left;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+  .nav-item svg { flex-shrink: 0; }
+  .sidebar-footer { padding: 12px 8px; border-top: 1px solid var(--border); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar {
+    height: 56px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 24px; gap: 12px;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 600; flex: 1; }
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .tab {
+    padding: 8px 16px; border: none; background: none; cursor: pointer;
+    color: var(--muted); font-size: 14px; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── CARDS / STATS ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .stat-card .label { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+  .stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── TOOLBAR ── */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .search-wrap { position: relative; flex: 1; min-width: 220px; max-width: 380px; }
+  .search-wrap input { width: 100%; padding: 8px 12px 8px 34px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 14px; outline: none; }
+  .search-wrap input:focus { border-color: var(--accent); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+
+  /* ── TABLE ── */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 10px 14px; vertical-align: middle; }
+  .mono { font-family: monospace; font-size: 13px; }
+  .badge {
+    display: inline-flex; align-items: center; padding: 2px 8px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .badge-green { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+  .badge-red { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
+  .badge-blue { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+
+  /* ── PAGINATION ── */
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+  .pagination-info { font-size: 13px; color: var(--muted); }
+  .pager { display: flex; gap: 4px; }
+  .pager-btn {
+    min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--border);
+    background: var(--surface2); border-radius: 6px; color: var(--text); cursor: pointer;
+    font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 4px;
+    transition: all .15s;
+  }
+  .pager-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .pager-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pager-btn:disabled { opacity: .4; cursor: default; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+    border-radius: var(--radius); border: none; cursor: pointer; font-size: 13px;
+    font-weight: 500; transition: all .15s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-h); }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-danger { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 30%, transparent); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+
+  /* ── MODAL ── */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; display: none; align-items: center; justify-content: center; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 480px; max-width: 96vw; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 16px; margin-bottom: 20px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .form-row input, .form-row select {
+    width: 100%; padding: 8px 12px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 14px; outline: none;
+  }
+  .form-row input:focus, .form-row select:focus { border-color: var(--accent); }
+  .form-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+  /* ── MISC ── */
+  .text-muted { color: var(--muted); }
+  .text-right { text-align: right; }
+  .text-mono { font-family: monospace; }
+  .rub { font-family: monospace; }
+  .loading { text-align: center; padding: 48px; color: var(--muted); }
+  .empty { text-align: center; padding: 48px; color: var(--muted); }
+  .tag { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-family: monospace; }
+  
+  .inline-edit { display: flex; align-items: center; gap: 6px; }
+  .inline-edit input {
+    width: 100px; padding: 3px 7px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-size: 13px; font-family: monospace;
+  }
+  .inline-edit input:focus { border-color: var(--accent); outline: none; }
+
+  .price-cell { font-family: monospace; font-size: 13px; }
+
+  @media (max-width: 600px) {
+    .sidebar { display: none; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">Kodik<span>Router</span></div>
+    <nav class="nav">
+      <button class="nav-item active" onclick="showSection('dashboard')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Панель
+      </button>
+      <button class="nav-item" onclick="showSection('users')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Пользователи
+      </button>
+      <button class="nav-item" onclick="showSection('pricing')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Тарифы
+      </button>
+      <button class="nav-item" onclick="showSection('usage')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Использование
+      </button>
+      <button class="nav-item" onclick="showSection('settings')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M4.93 4.93a10 10 0 0 0 14.14 14.14"/></svg>
+        Настройки
+      </button>
+    </nav>
+    <div class="sidebar-footer"><a href="/chat" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;text-decoration:none;color:var(--text);font-size:14px;margin-bottom:4px" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Перейти в чат</a>
+      <button class="nav-item" onclick="logout()" style="color:var(--red)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Выйти
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <h1 id="section-title">Панель управления</h1>
+      <span id="user-badge" class="badge badge-blue" style="font-size:12px"></span>
+    </header>
+
+    <div class="content">
+
+      <!-- ══ DASHBOARD ══ -->
+      <section id="sec-dashboard">
+        <div class="stats-grid" id="stats-grid">
+          <div class="loading">Загрузка...</div>
+        </div>
+      </section>
+
+      <!-- ══ USERS ══ -->
+      <section id="sec-users" style="display:none">
+        <div class="toolbar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="users-search" type="text" placeholder="Поиск пользователей…" oninput="usersPage=1;renderUsers()">
+          </div>
+          <button class="btn btn-primary" onclick="openUserModal()">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Добавить
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>ID</th><th>Email</th><th>Имя</th><th>Роль</th>
+              <th>Баланс</th><th>RPM</th><th>Бюджет/день</th><th>Статус</th><th></th>
+            </tr></thead>
+            <tbody id="users-body"><tr><td colspan="9" class="loading">Загрузка…</td></tr></tbody>
+          </table>
+          <div class="pagination" id="users-pagination"></div>
+        </div>
+      </section>
+
+      <!-- ══ PRICING ══ -->
+      <section id="sec-pricing" style="display:none">
+        <div class="tabs">
+          <button class="tab active" onclick="pricingTab('all')">Все модели</button>
+          <button class="tab" onclick="pricingTab('edit')">Редактировать</button>
+        </div>
+
+        <!-- All tab -->
+        <div id="pt-all" class="tab-panel active">
+          <div class="toolbar">
+            <div class="search-wrap">
+              <svg class="search-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="pricing-search" type="text" placeholder="Поиск по модели…" oninput="pricingPage=1;renderPricing()">
+            </div>
+            <select id="pricing-per-page" onchange="pricingPerPage=+this.value;pricingPage=1;renderPricing()" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+              <option value="20">20 на стр.</option>
+              <option value="50" selected>50 на стр.</option>
+              <option value="100">100 на стр.</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="openPricingModal()">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Добавить
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Модель</th>
+                <th class="text-right">Вход ₽/1M</th>
+                <th class="text-right">Выход ₽/1M</th>
+                <th class="text-right">Кэш ₽/1M</th>
+                <th>Обновлено</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="pricing-body"><tr><td colspan="6" class="loading">Загрузка…</td></tr></tbody>
+            </table>
+            <div class="pagination" id="pricing-pagination"></div>
+          </div>
+        </div>
+
+        <!-- Edit tab -->
+        <div id="pt-edit" class="tab-panel">
+          <p class="text-muted" style="margin-bottom:16px;font-size:13px">Выберите модель в таблице «Все модели» и нажмите <b>Изменить</b>, или нажмите строку для быстрого редактирования цен.</p>
+          <div id="pricing-edit-form" style="display:none">
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:500px">
+              <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Редактирование модели</div>
+              <div id="edit-model-name" style="font-family:monospace;font-size:16px;font-weight:600;margin-bottom:20px"></div>
+              <div class="form-row">
+                <label>Входящие токены ₽ / 1M</label>
+                <input id="edit-input" type="number" step="0.01" min="0">
+              </div>
+              <div class="form-row">
+                <label>Исходящие токены ₽ / 1M</label>
+                <input id="edit-output" type="number" step="0.01" min="0">
+              </div>
+              <div class="form-row">
+                <label>Кэш (чтение) ₽ / 1M <span class="text-muted">(необязательно)</span></label>
+                <input id="edit-cache" type="number" step="0.01" min="0">
+              </div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="btn btn-primary" onclick="savePricingEdit()">Сохранить</button>
+                <button class="btn btn-ghost" onclick="cancelPricingEdit()">Отмена</button>
+                <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="deletePricingEdit()">Удалить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ USAGE ══ -->
+      <section id="sec-usage" style="display:none">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Дата</th><th>Пользователь</th><th>Модель</th>
+              <th class="text-right">Вход</th><th class="text-right">Выход</th>
+              <th class="text-right">Стоимость</th><th>Статус</th>
+            </tr></thead>
+            <tbody id="usage-body"><tr><td colspan="7" class="loading">Загрузка…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ══ SETTINGS ══ -->
+      <section id="sec-settings" style="display:none">
+        <div style="max-width:520px;display:flex;flex-direction:column;gap:20px">
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px">
+            <h3 style="font-size:14px;margin-bottom:16px">API</h3>
+            <div class="form-row">
+              <label>KodikRouter URL</label>
+              <input id="set-kodik-url" type="text" placeholder="https://...">
+            </div>
+            <div class="form-row">
+              <label>KodikRouter API Key</label>
+              <input id="set-kodik-key" type="password" placeholder="sk-...">
+            </div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px">
+            <h3 style="font-size:14px;margin-bottom:16px">Ограничения по умолчанию</h3>
+            <div class="form-row">
+              <label>RPM (запросов/мин)</label>
+              <input id="set-rpm" type="number" min="1">
+            </div>
+            <div class="form-row">
+              <label>Дневной бюджет (₽)</label>
+              <input id="set-budget" type="number" min="0" step="0.01">
+            </div>
+            <div class="form-row">
+              <label>Курс USD → ₽</label>
+              <input id="set-usd-rate" type="number" min="1" step="0.1" placeholder="90">
+            </div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px">
+            <h3 style="font-size:14px;margin-bottom:16px">Безопасность</h3>
+            <div class="form-row">
+              <label>Новый пароль администратора</label>
+              <input id="set-newpass" type="password" placeholder="Оставьте пустым, если не менять">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="saveSettings()" style="width:fit-content">Сохранить настройки</button>
+        </div>
+      </section>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ── Modals ── -->
+<div class="overlay" id="modal-user">
+  <div class="modal">
+    <h2 id="modal-user-title">Добавить пользователя</h2>
+    <div class="form-row"><label>Email *</label><input id="uf-email" type="email"></div>
+    <div class="form-row"><label>Имя пользователя *</label><input id="uf-username" type="text"></div>
+    <div class="form-row"><label>Пароль *</label><input id="uf-password" type="password"></div>
+    <div class="form-row">
+      <label>Роль</label>
+      <select id="uf-role"><option value="user">user</option><option value="admin">admin</option></select>
+    </div>
+    <div class="form-row"><label>Баланс (₽)</label><input id="uf-balance" type="number" step="0.01" value="0"></div>
+    <div class="form-row"><label>RPM лимит</label><input id="uf-rpm" type="number" value="60"></div>
+    <div class="form-row"><label>Дневной бюджет (₽)</label><input id="uf-daily" type="number" step="0.01" value="100"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-user')">Отмена</button>
+      <button class="btn btn-primary" onclick="submitUserModal()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modal-pricing">
+  <div class="modal">
+    <h2>Добавить модель</h2>
+    <div class="form-row"><label>Название модели *</label><input id="pf-model" type="text" placeholder="gpt-4o"></div>
+    <div class="form-row"><label>Входящие токены ₽/1M *</label><input id="pf-input" type="number" step="0.01" min="0"></div>
+    <div class="form-row"><label>Исходящие токены ₽/1M *</label><input id="pf-output" type="number" step="0.01" min="0"></div>
+    <div class="form-row"><label>Кэш ₽/1M</label><input id="pf-cache" type="number" step="0.01" min="0"><div class="form-hint">Необязательно</div></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pricing')">Отмена</button>
+      <button class="btn btn-primary" onclick="submitPricingModal()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+// cookie-based auth — no token needed
+
+// ── Auth guard ────────────────────────────────────────────────────────────────
+
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    headers: {  'Content-Type': 'application/json', ...opts.headers },
+    credentials: 'include',
+    ...opts,
+  });
+  if (r.status === 401 || r.status === 403) { window.location.href = '/login'; return null; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+async function logout() {
+  await fetch(API + '/auth/logout', { method: 'POST', credentials: 'include' });
+  window.location.href = '/login';
+}
+
+function fmt(n) { return (n ?? 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtDate(s) { if (!s) return '—'; return new Date(s).toLocaleString('ru-RU', { dateStyle:'short', timeStyle:'short' }); }
+function fmtRub(n) { if (n == null) return '—'; return '₽\u202f' + fmt(n); }
+
+// ── Section switch ────────────────────────────────────────────────────────────
+const TITLES = { dashboard:'Панель управления', users:'Пользователи', pricing:'Тарифы моделей', usage:'Использование', settings:'Настройки' };
+function showSection(name) {
+  ['dashboard','users','pricing','usage','settings'].forEach(s => {
+    document.getElementById('sec-' + s).style.display = s === name ? '' : 'none';
+  });
+  document.querySelectorAll('.nav-item').forEach((el, i) => el.classList.remove('active'));
+  const navItems = document.querySelectorAll('.nav-item');
+  const idx = ['dashboard','users','pricing','usage','settings'].indexOf(name);
+  if (navItems[idx]) navItems[idx].classList.add('active');
+  document.getElementById('section-title').textContent = TITLES[name];
+  if (name === 'dashboard') loadStats();
+  if (name === 'users') loadUsers();
+  if (name === 'pricing') loadPricing();
+  if (name === 'usage') loadUsage();
+  if (name === 'settings') loadSettings();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const stats = await api('/admin/stats').catch(() => null);
+  if (!stats) return;
+  const grid = document.getElementById('stats-grid');
+  grid.innerHTML = `
+    <div class="stat-card"><div class="label">Всего пользователей</div><div class="value">${stats.total_users}</div></div>
+    <div class="stat-card"><div class="label">Активных за 30 дней</div><div class="value">${stats.active_users}</div></div>
+    <div class="stat-card"><div class="label">Запросов сегодня</div><div class="value">${stats.requests_today}</div></div>
+    <div class="stat-card"><div class="label">Расходы</div><div class="value">₽${fmt(stats.revenue_month)}</div><div class="sub">текущий месяц</div></div>
+  `;
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+let allUsers = [], usersPage = 1, usersPerPage = 50;
+async function loadUsers() {
+  const res = await api('/admin/users?limit=5000').catch(() => null);
+  if (!res) return;
+  allUsers = res.items || res;
+  renderUsers();
+}
+function renderUsers() {
+  const q = document.getElementById('users-search').value.toLowerCase();
+  const filtered = allUsers.filter(u => !q || u.email.includes(q) || u.username?.includes(q));
+  const total = filtered.length;
+  const pages = Math.ceil(total / usersPerPage) || 1;
+  if (usersPage > pages) usersPage = pages;
+  const slice = filtered.slice((usersPage-1)*usersPerPage, usersPage*usersPerPage);
+  document.getElementById('users-body').innerHTML = slice.length ? slice.map(u => `
+    <tr>
+      <td class="text-muted">#${u.id}</td>
+      <td>${u.email}</td>
+      <td>${u.username || '—'}</td>
+      <td><span class="badge ${u.role==='admin'?'badge-blue':'badge-green'}">${u.role}</span></td>
+      <td class="price-cell">${fmtRub(u.balance)}</td>
+      <td>${u.rpm_limit ?? '—'}</td>
+      <td class="price-cell">${u.daily_budget != null ? fmtRub(u.daily_budget) : '—'}</td>
+      <td><span class="badge ${u.is_active?'badge-green':'badge-red'}">${u.is_active?'Активен':'Заблокирован'}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editUser(${u.id})">Изменить</button></td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty">Нет пользователей</td></tr>';
+  renderPagination('users-pagination', usersPage, pages, total, usersPerPage, p => { usersPage=p; renderUsers(); });
+}
+let editingUserId = null;
+function openUserModal(user) {
+  editingUserId = user?.id ?? null;
+  document.getElementById('modal-user-title').textContent = user ? 'Изменить пользователя' : 'Добавить пользователя';
+  document.getElementById('uf-email').value = user?.email || '';
+  document.getElementById('uf-username').value = user?.username || '';
+  document.getElementById('uf-password').value = '';
+  document.getElementById('uf-role').value = user?.role || 'user';
+  document.getElementById('uf-balance').value = user?.balance ?? 0;
+  document.getElementById('uf-rpm').value = user?.rpm_limit ?? 60;
+  document.getElementById('uf-daily').value = user?.daily_budget ?? 100;
+  document.getElementById('modal-user').classList.add('open');
+}
+async function editUser(id) {
+  const u = allUsers.find(x => x.id === id);
+  if (u) openUserModal(u);
+}
+async function submitUserModal() {
+  const body = {
+    email: document.getElementById('uf-email').value.trim(),
+    username: document.getElementById('uf-username').value.trim(),
+    role: document.getElementById('uf-role').value,
+    balance: parseFloat(document.getElementById('uf-balance').value),
+    rpm_limit: parseInt(document.getElementById('uf-rpm').value),
+    daily_budget: parseFloat(document.getElementById('uf-daily').value),
+  };
+  const pass = document.getElementById('uf-password').value;
+  if (pass) body.password = pass;
+  try {
+    if (editingUserId) {
+      await api(`/admin/users/${editingUserId}`, { method:'PATCH', body:JSON.stringify(body) });
+    } else {
+      if (!pass) return alert('Пароль обязателен');
+      await api('/admin/users', { method:'POST', body:JSON.stringify(body) });
+    }
+    closeModal('modal-user');
+    loadUsers();
+  } catch(e) { alert(e.message); }
+}
+
+// ── Pricing ───────────────────────────────────────────────────────────────────
+let allPricing = [], pricingPage = 1, pricingPerPage = 50;
+let editingPricingId = null;
+
+async function loadPricing() {
+  const res = await api('/admin/pricing?limit=5000').catch(() => null);
+  if (!res) return;
+  allPricing = res.items || res;
+  renderPricing();
+}
+
+function pricingTab(name) {
+  document.querySelectorAll('#sec-pricing .tab').forEach((t, i) => t.classList.toggle('active', ['all','edit'][i] === name));
+  document.getElementById('pt-all').classList.toggle('active', name === 'all');
+  document.getElementById('pt-edit').classList.toggle('active', name === 'edit');
+}
+
+function renderPricing() {
+  pricingPerPage = parseInt(document.getElementById('pricing-per-page').value) || 50;
+  const q = document.getElementById('pricing-search').value.toLowerCase();
+  const filtered = allPricing.filter(p => !q || p.model.toLowerCase().includes(q));
+  const total = filtered.length;
+  const pages = Math.ceil(total / pricingPerPage) || 1;
+  if (pricingPage > pages) pricingPage = pages;
+  const slice = filtered.slice((pricingPage-1)*pricingPerPage, pricingPage*pricingPerPage);
+  document.getElementById('pricing-body').innerHTML = slice.length ? slice.map(p => `
+    <tr style="cursor:pointer" onclick="selectPricingEdit(${p.id})">
+      <td><span class="tag">${p.model}</span></td>
+      <td class="price-cell text-right">₽\u202f${fmt(p.input_price_per_1m)}</td>
+      <td class="price-cell text-right">₽\u202f${fmt(p.output_price_per_1m)}</td>
+      <td class="price-cell text-right">${p.cache_read_price_per_1m != null ? '₽\u202f'+fmt(p.cache_read_price_per_1m) : '—'}</td>
+      <td class="text-muted" style="font-size:12px">${fmtDate(p.updated_at)}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();selectPricingEdit(${p.id})">Изменить</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty">Ничего не найдено</td></tr>';
+  renderPagination('pricing-pagination', pricingPage, pages, total, pricingPerPage, p => { pricingPage=p; renderPricing(); });
+}
+
+function selectPricingEdit(id) {
+  const p = allPricing.find(x => x.id === id);
+  if (!p) return;
+  editingPricingId = id;
+  document.getElementById('edit-model-name').textContent = p.model;
+  document.getElementById('edit-input').value = p.input_price_per_1m;
+  document.getElementById('edit-output').value = p.output_price_per_1m;
+  document.getElementById('edit-cache').value = p.cache_read_price_per_1m ?? '';
+  document.getElementById('pricing-edit-form').style.display = '';
+  pricingTab('edit');
+}
+
+function cancelPricingEdit() {
+  editingPricingId = null;
+  document.getElementById('pricing-edit-form').style.display = 'none';
+  pricingTab('all');
+}
+
+async function savePricingEdit() {
+  if (!editingPricingId) return;
+  const body = {
+    input_price_per_1m: parseFloat(document.getElementById('edit-input').value),
+    output_price_per_1m: parseFloat(document.getElementById('edit-output').value),
+  };
+  const cache = document.getElementById('edit-cache').value;
+  if (cache !== '') body.cache_read_price_per_1m = parseFloat(cache);
+  try {
+    await api(`/admin/pricing/${editingPricingId}`, { method:'PATCH', body:JSON.stringify(body) });
+    cancelPricingEdit();
+    loadPricing();
+  } catch(e) { alert(e.message); }
+}
+
+async function deletePricingEdit() {
+  if (!editingPricingId || !confirm('Удалить запись?')) return;
+  try {
+    await api(`/admin/pricing/${editingPricingId}`, { method:'DELETE' });
+    cancelPricingEdit();
+    loadPricing();
+  } catch(e) { alert(e.message); }
+}
+
+function openPricingModal() {
+  document.getElementById('pf-model').value = '';
+  document.getElementById('pf-input').value = '';
+  document.getElementById('pf-output').value = '';
+  document.getElementById('pf-cache').value = '';
+  document.getElementById('modal-pricing').classList.add('open');
+}
+
+async function submitPricingModal() {
+  const body = {
+    model: document.getElementById('pf-model').value.trim(),
+    input_price_per_1m: parseFloat(document.getElementById('pf-input').value),
+    output_price_per_1m: parseFloat(document.getElementById('pf-output').value),
+  };
+  if (!body.model) return alert('Укажите название модели');
+  const cache = document.getElementById('pf-cache').value;
+  if (cache !== '') body.cache_read_price_per_1m = parseFloat(cache);
+  try {
+    await api('/admin/pricing', { method:'POST', body:JSON.stringify(body) });
+    closeModal('modal-pricing');
+    loadPricing();
+  } catch(e) { alert(e.message); }
+}
+
+// ── Usage ─────────────────────────────────────────────────────────────────────
+async function loadUsage() {
+  const rows = await api('/admin/usage?limit=100').catch(() => []);
+  document.getElementById('usage-body').innerHTML = rows?.length ? rows.map(r => `
+    <tr>
+      <td style="font-size:12px">${fmtDate(r.created_at)}</td>
+      <td>${r.username || r.user_id || '—'}</td>
+      <td><span class="tag">${r.model || '—'}</span></td>
+      <td class="text-right">${(r.prompt_tokens||0).toLocaleString()}</td>
+      <td class="text-right">${(r.completion_tokens||0).toLocaleString()}</td>
+      <td class="price-cell text-right">${r.cost_usd != null ? fmtRub(r.cost_usd) : '—'}</td>
+      <td><span class="badge ${r.status==='success'?'badge-green':'badge-red'}">${r.status||'—'}</span></td>
+    </tr>`).join('') : '<tr><td colspan="7" class="empty">Нет данных</td></tr>';
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const cfg = await api('/admin/settings').catch(() => ({}));
+  if (!cfg) return;
+  document.getElementById('set-kodik-url').value = cfg.kodik_base_url || cfg.kodik_url || '';
+  document.getElementById('set-kodik-key').value = cfg.kodik_api_key || '';
+  document.getElementById('set-rpm').value = cfg.default_rpm || '';
+  document.getElementById('set-budget').value = cfg.default_daily_budget || '';
+  document.getElementById('set-usd-rate').value = cfg.usd_to_rub || '';
+}
+
+async function saveSettings() {
+  const body = {};
+  const url = document.getElementById('set-kodik-url').value.trim();
+  const key = document.getElementById('set-kodik-key').value.trim();
+  const rpm = document.getElementById('set-rpm').value;
+  const budget = document.getElementById('set-budget').value;
+  if (url) body.kodik_url = url;
+  if (key) body.kodik_api_key = key;
+  if (rpm) body.default_rpm = parseInt(rpm);
+  if (budget) body.default_daily_budget = parseFloat(budget);
+  const usdRate = document.getElementById('set-usd-rate').value;
+  if (usdRate) body.usd_to_rub = parseFloat(usdRate);
+  const newpass = document.getElementById('set-newpass').value;
+  try {
+    await api('/admin/settings', { method:'POST', body:JSON.stringify(body) });
+    if (newpass) await api('/admin/change-password', { method:'POST', body:JSON.stringify({ password: newpass }) });
+    alert('Настройки сохранены');
+  } catch(e) { alert(e.message); }
+}
+
+// ── Pagination helper ─────────────────────────────────────────────────────────
+function renderPagination(id, page, pages, total, perPage, cb) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const from = Math.min((page-1)*perPage+1, total);
+  const to = Math.min(page*perPage, total);
+  let btns = '';
+  const range = [];
+  for (let p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || Math.abs(p - page) <= 2) range.push(p);
+    else if (range[range.length-1] !== '…') range.push('…');
+  }
+  range.forEach(p => {
+    if (p === '…') btns += `<span class="pager-btn" style="cursor:default">…</span>`;
+    else btns += `<button class="pager-btn${p===page?' active':''}" onclick="(${cb})(${p})">${p}</button>`;
+  });
+  el.innerHTML = `
+    <span class="pagination-info">${from}–${to} из ${total}</span>
+    <div class="pager">
+      <button class="pager-btn" onclick="(${cb})(${page-1})" ${page<=1?'disabled':''}>‹</button>
+      ${btns}
+      <button class="pager-btn" onclick="(${cb})(${page+1})" ${page>=pages?'disabled':''}>›</button>
+    </div>`;
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const me = await api('/auth/me');
+    if (me) document.getElementById('user-badge').textContent = me.email;
+  } catch {}
+  loadStats();
+})();
+</script>
+</body>
+</html>
+
